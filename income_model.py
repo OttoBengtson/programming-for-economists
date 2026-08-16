@@ -66,6 +66,10 @@ class IncomeModelClass:
         self.replacement_rate = 0.60
         self.benefit_floor = 0.35
 
+        # l. standard deviation of temporary wage shock
+        # zero in the baseline model
+        self.sigma_wage = 0.0
+
     def draw_education(self):
         """Draw an education group for each individual."""
 
@@ -199,7 +203,7 @@ class IncomeModelClass:
                 self.human_capital[in_education, t-1]
             )
 
-            # ii. individuals active in labour market
+            # ii. individuals active in the labour market
             active = (
                 age > self.labour_market_entry_age
             )
@@ -243,7 +247,7 @@ class IncomeModelClass:
             (self.N, self.T)
         )
 
-        # b. store income from most recent job
+        # b. store underlying income from most recent job
         last_job_income = np.zeros(self.N)
 
         # c. loop over ages
@@ -269,22 +273,31 @@ class IncomeModelClass:
                 & self.employed[:, t]
             )
 
+            # iv. draw mean-one temporary wage shock
+            wage_shock = self.rng.lognormal(
+                -0.5 * self.sigma_wage**2,
+                self.sigma_wage,
+                size=self.N
+            )
+
+            # v. labour income including temporary wage shock
             self.income[employed, t] = (
+                self.human_capital[employed, t]
+                * wage_shock[employed]
+            )
+
+            # vi. store underlying wage before temporary shock
+            last_job_income[employed] = (
                 self.human_capital[employed, t]
             )
 
-            # update most recent job income
-            last_job_income[employed] = (
-                self.income[employed, t]
-            )
-
-            # iv. unemployed individuals
+            # vii. unemployed individuals
             unemployed = (
                 in_labour_market
                 & ~self.employed[:, t]
             )
 
-            # v. unemployed with previous employment
+            # viii. unemployed with previous employment
             previously_employed = (
                 unemployed
                 & (last_job_income > 0)
@@ -295,7 +308,7 @@ class IncomeModelClass:
                 * last_job_income[previously_employed]
             )
 
-            # vi. unemployed who have never been employed
+            # ix. unemployed who have never been employed
             never_employed = (
                 unemployed
                 & (last_job_income == 0)
