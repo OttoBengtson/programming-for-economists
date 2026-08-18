@@ -137,7 +137,7 @@ class IncomeModelClass:
                 age == self.labour_market_entry_age
             )
 
-            # they enter as unemployed
+            # individuals enter as unemployed
             self.employed[entering, t] = False
 
             # ii. skip first period
@@ -152,7 +152,7 @@ class IncomeModelClass:
             # iv. employment status in previous period
             employed_last = self.employed[:, t-1]
 
-            # v. draw random numbers for transitions
+            # v. random transition draw
             random_draw = self.rng.uniform(
                 size=self.N
             )
@@ -183,29 +183,35 @@ class IncomeModelClass:
             (self.N, self.T)
         )
 
-        # b. assign initial human capital at age 18
+        # b. human capital at age 18
         self.human_capital[:, 0] = (
             self.human_capital_initial
         )
 
-        # c. loop over remaining ages
+        # c. loop over transitions between ages
         for t in range(1, self.T):
 
-            age = self.ages[t]
+            # previous age determines the transition
+            previous_age = self.ages[t-1]
 
-            # i. individuals still in education
-            in_education = (
-                age <= self.labour_market_entry_age
+            # i. individuals in education in previous period
+            in_education_previous = (
+                previous_age
+                < self.labour_market_entry_age
             )
 
             # human capital is unchanged while in education
-            self.human_capital[in_education, t] = (
-                self.human_capital[in_education, t-1]
-            )
+            self.human_capital[
+                in_education_previous, t
+            ] = self.human_capital[
+                in_education_previous, t-1
+            ]
 
-            # ii. individuals active in the labour market
-            active = (
-                age > self.labour_market_entry_age
+            # ii. individuals in the labour market
+            # in the previous period
+            active_previous = (
+                previous_age
+                >= self.labour_market_entry_age
             )
 
             # iii. draw mean-one lognormal shock
@@ -215,28 +221,41 @@ class IncomeModelClass:
                 size=self.N
             )
 
-            # iv. employed individuals
-            employed = (
-                active
-                & self.employed[:, t]
+            # iv. employed in previous period
+            employed_previous = (
+                active_previous
+                & self.employed[:, t-1]
             )
 
-            self.human_capital[employed, t] = (
-                self.human_capital[employed, t-1]
-                * (1 + self.human_capital_growth[employed])
-                * psi[employed]
+            self.human_capital[
+                employed_previous, t
+            ] = (
+                self.human_capital[
+                    employed_previous, t-1
+                ]
+                * (
+                    1
+                    + self.human_capital_growth[
+                        employed_previous
+                    ]
+                )
+                * psi[employed_previous]
             )
 
-            # v. unemployed individuals
-            unemployed = (
-                active
-                & ~self.employed[:, t]
+            # v. unemployed in previous period
+            unemployed_previous = (
+                active_previous
+                & ~self.employed[:, t-1]
             )
 
-            self.human_capital[unemployed, t] = (
-                self.human_capital[unemployed, t-1]
+            self.human_capital[
+                unemployed_previous, t
+            ] = (
+                self.human_capital[
+                    unemployed_previous, t-1
+                ]
                 * (1 - self.delta)
-                * psi[unemployed]
+                * psi[unemployed_previous]
             )
 
     def simulate_income(self):
@@ -262,7 +281,7 @@ class IncomeModelClass:
                 self.student_grant
             )
 
-            # ii. individuals in the labour market
+            # ii. individuals in labour market
             in_labour_market = (
                 age >= self.labour_market_entry_age
             )
@@ -280,13 +299,14 @@ class IncomeModelClass:
                 size=self.N
             )
 
-            # v. labour income including temporary wage shock
+            # v. labour income
             self.income[employed, t] = (
                 self.human_capital[employed, t]
                 * wage_shock[employed]
             )
 
-            # vi. store underlying wage before temporary shock
+            # vi. store underlying wage before
+            # the temporary wage shock
             last_job_income[employed] = (
                 self.human_capital[employed, t]
             )
@@ -303,9 +323,13 @@ class IncomeModelClass:
                 & (last_job_income > 0)
             )
 
-            self.income[previously_employed, t] = (
+            self.income[
+                previously_employed, t
+            ] = (
                 self.replacement_rate
-                * last_job_income[previously_employed]
+                * last_job_income[
+                    previously_employed
+                ]
             )
 
             # ix. unemployed who have never been employed
@@ -322,7 +346,9 @@ class IncomeModelClass:
         """Run the complete life-cycle simulation."""
 
         # a. reset random number generator
-        self.rng = np.random.default_rng(self.seed)
+        self.rng = np.random.default_rng(
+            self.seed
+        )
 
         # b. draw education
         self.draw_education()
